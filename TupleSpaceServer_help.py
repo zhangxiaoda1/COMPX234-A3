@@ -68,7 +68,6 @@ def print_stats():
 
 def handle_client(client_socket):
     global tuple_space
-
     increment_stat("total_clients")
     try:
         while True:
@@ -78,10 +77,17 @@ def handle_client(client_socket):
             size_data = receive_n(client_socket, 3)
             if not size_data or len(size_data) < 3:
                 break
-            total_size = int(size_data.decode())
+            try:
+                total_size = int(size_data.decode())
+            except ValueError:
+                # Received non-numeric size prefix, protocol violation
+                increment_stat("error_count")
+                break
             # Read remaining bytes for the actual message
             message_data = receive_n(client_socket, total_size - 3)
             if len(message_data) < total_size - 3:
+                # Incomplete message, client likely disconnected
+                increment_stat("error_count")
                 break
             # Decode and strip leading space
             message_buffer = message_data.decode().lstrip()
@@ -94,7 +100,7 @@ def handle_client(client_socket):
             resp_msg = f"{total_resp_len:03d} {response}"
             client_socket.sendall(resp_msg.encode())
 
-    except (socket.error, ValueError):
+    except (socket.error, ValueError) as e:
         pass
     finally:
         client_socket.close()
@@ -117,7 +123,9 @@ def handle_request(message):
     if len(key) > 999:
         increment_stat("error_count")
         return "ERR Key too long"
-
+    if not key:
+        increment_stat("error_count")
+        return "ERR Key cannot be empty"
     with lock:
         if op == "R":
             # TASK 3: READ — look up key in tuple_space.
