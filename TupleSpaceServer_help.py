@@ -15,6 +15,7 @@ get_count = 0
 put_count = 0
 error_count = 0
 lock = threading.Lock()
+stats_lock = threading.Lock()
 
 def receive_n(sock, num_bytes):
     """Read exactly num_bytes from the socket."""
@@ -29,18 +30,19 @@ def receive_n(sock, num_bytes):
 
 def increment_stat(stat_name):
     global total_clients, total_operations, read_count, get_count, put_count, error_count
-    if stat_name == "total_clients":
-        total_clients += 1
-    elif stat_name == "total_operations":
-        total_operations += 1
-    elif stat_name == "read_count":
-        read_count += 1
-    elif stat_name == "get_count":
-        get_count += 1
-    elif stat_name == "put_count":
-        put_count += 1
-    elif stat_name == "error_count":
-        error_count += 1
+    with stats_lock:
+        if stat_name == "total_clients":
+            total_clients += 1
+        elif stat_name == "total_operations":
+            total_operations += 1
+        elif stat_name == "read_count":
+            read_count += 1
+        elif stat_name == "get_count":
+            get_count += 1
+        elif stat_name == "put_count":
+            put_count += 1
+        elif stat_name == "error_count":
+            error_count += 1
 
 def print_stats():
     while True:
@@ -54,17 +56,26 @@ def print_stats():
                 avg_key_size = total_key_size / tuple_count
                 avg_value_size = total_value_size / tuple_count
                 avg_tuple_size = avg_key_size + avg_value_size
+            else:
+                avg_key_size = avg_value_size = avg_tuple_size = 0
+            with stats_lock:
+                clients = total_clients
+                ops = total_operations
+                reads = read_count
+                gets = get_count
+                puts = put_count
+                errors = error_count
             print("\n--- Tuple Space Stats ---")
             print(f"Tuples: {tuple_count}")
             print(f"Avg Tuple Size: {avg_tuple_size:.2f}")
             print(f"Avg Key Size: {avg_key_size:.2f}")
             print(f"Avg Value Size: {avg_value_size:.2f}")
-            print(f"Clients: {total_clients}")
-            print(f"Operations: {total_operations}")
-            print(f"READs: {read_count}")
-            print(f"GETs: {get_count}")
-            print(f"PUTs: {put_count}")
-            print(f"Errors: {error_count}\n")
+            print(f"Clients: {clients}")
+            print(f"Operations: {ops}")
+            print(f"READs: {reads}")
+            print(f"GETs: {gets}")
+            print(f"PUTs: {puts}")
+            print(f"Errors: {errors}\n")
 
 def handle_client(client_socket):
     global tuple_space
